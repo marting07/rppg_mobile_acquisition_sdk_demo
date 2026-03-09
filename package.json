@@ -1,0 +1,8 @@
+{
+  "name": "rppg-mobile-acquisition-sdk-demo-workspace",
+  "private": true,
+  "workspaces": [
+    "app",
+    "packages/*"
+  ]
+}
