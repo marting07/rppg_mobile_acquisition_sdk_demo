@@ -10,15 +10,20 @@ pnpm-debug.log*
 .expo-shared/
 .metro-health-check*
 .watchmanconfig.local
+.bundle/
 
 # Android build artifacts
-android/.gradle/
-android/app/build/
-android/build/
+app/android/.gradle/
+app/android/.cxx/
+app/android/app/build/
+app/android/build/
 
 # iOS build artifacts
-ios/build/
-ios/Pods/
+app/ios/build/
+app/ios/Pods/
+app/ios/*.xcworkspace
+app/ios/**/*.xcuserstate
+app/ios/.xcode.env.local
 
 # Generic build/cache
 dist/
