@@ -26,6 +26,8 @@ type NativeSummaryResult = {
 export class VisionCameraAdapter implements CameraAdapter {
   private listener: ((frame: AcquisitionFrame) => void) | null = null;
   private running = false;
+  private captureStartWallClockMs: number | null = null;
+  private firstNativeTimestampMs: number | null = null;
 
   attachPreview(_: PreviewAttachment): void {
     // Preview is handled by the React component below.
@@ -34,19 +36,24 @@ export class VisionCameraAdapter implements CameraAdapter {
   start(listener: (frame: AcquisitionFrame) => void): void {
     this.listener = listener;
     this.running = true;
+    this.captureStartWallClockMs = Date.now();
+    this.firstNativeTimestampMs = null;
   }
 
   stop(): void {
     this.running = false;
     this.listener = null;
+    this.captureStartWallClockMs = null;
+    this.firstNativeTimestampMs = null;
   }
 
   ingestNativeSummary(summary: NativeSummaryResult): void {
     if (!this.running || !this.listener || !summary.patches.length) {
       return;
     }
+    const normalizedTimestampMs = this.normalizeTimestamp(summary.timestampMs);
     this.listener({
-      timestampMs: summary.timestampMs ?? Date.now(),
+      timestampMs: normalizedTimestampMs,
       patches: summary.patches.map((patch) => ({
         patchId: patch.patchId,
         meanRgb: patch.meanRgb,
@@ -59,6 +66,22 @@ export class VisionCameraAdapter implements CameraAdapter {
         roiCoverage: summary.localQuality?.roiCoverage
       }
     });
+  }
+
+  private normalizeTimestamp(nativeTimestampMs?: number): number {
+    const wallClockStart = this.captureStartWallClockMs ?? Date.now();
+    if (nativeTimestampMs == null || !Number.isFinite(nativeTimestampMs)) {
+      return Date.now();
+    }
+
+    if (this.firstNativeTimestampMs == null) {
+      this.firstNativeTimestampMs = nativeTimestampMs;
+    }
+    const relativeMs = nativeTimestampMs - this.firstNativeTimestampMs;
+    if (!Number.isFinite(relativeMs) || relativeMs < 0) {
+      return Date.now();
+    }
+    return Math.round(wallClockStart + relativeMs);
   }
 }
 

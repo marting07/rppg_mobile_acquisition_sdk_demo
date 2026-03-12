@@ -13,7 +13,7 @@ import {
 } from "mobile-rppg-acquisition-sdk";
 
 export default function App(): JSX.Element {
-  const availableMethods = ["green", "chrom", "pos"] as const;
+  const availableMethods = ["chrom", "pos", "ica"] as const;
   const sdk = useMemo(() => new MobileRppgAcquisitionSdk(BACKEND_BASE_URL), []);
   const cameraAdapterRef = useRef<SyntheticCameraAdapter>(new SyntheticCameraAdapter());
   const visionCameraAdapterRef = useRef<VisionCameraAdapter>(new VisionCameraAdapter());
@@ -22,9 +22,9 @@ export default function App(): JSX.Element {
   const [status, setStatus] = useState<string>("idle");
   const [feedback, setFeedback] = useState<string>("Ready");
   const [decision, setDecision] = useState<string>("-");
-  const [method, setMethod] = useState<string>("-");
+  const [backendMethod, setBackendMethod] = useState<string>("-");
   const [bpm, setBpm] = useState<string>("-");
-  const [selectedMethod, setSelectedMethod] = useState<(typeof availableMethods)[number]>("green");
+  const [selectedMethod, setSelectedMethod] = useState<(typeof availableMethods)[number]>("chrom");
   const [resultDetails, setResultDetails] = useState<string>("-");
   const isSessionActive = status === "streaming" || status === "session_created";
 
@@ -53,7 +53,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision(event.result.decision || "unknown");
-      setMethod(event.result.selected_method || "-");
+      setBackendMethod(event.result.selected_method || "-");
       setResultDetails(formatResultDetails(event.result));
     }
   };
@@ -62,8 +62,9 @@ export default function App(): JSX.Element {
     if (event.type === "quality_feedback") {
       setFeedback(event.message);
     } else if (event.type === "provisional_result" || event.type === "stable_result") {
-      setBpm(event.bpm.toFixed(1));
-      setMethod(event.selected_method);
+      const highlighted = event.method_state[selectedMethod];
+      setBpm((highlighted?.bpm ?? event.bpm).toFixed(1));
+      setBackendMethod(event.selected_method);
       setFeedback(event.type === "stable_result" ? "stable" : "buffering");
     } else if (event.type === "complete") {
       if (stopTimerRef.current) {
@@ -71,7 +72,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision(event.result.decision || "unknown");
-      setMethod(event.result.selected_method || "-");
+      setBackendMethod(event.result.selected_method || "-");
       setResultDetails(formatResultDetails(event.result));
       setStatus("stopped");
     } else if (event.type === "error") {
@@ -89,7 +90,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision("-");
-      setMethod("-");
+      setBackendMethod("-");
       setBpm("-");
       setResultDetails("-");
       setFeedback("starting");
@@ -123,7 +124,7 @@ export default function App(): JSX.Element {
         return;
       }
       setDecision(result.decision || "unknown");
-      setMethod(result.selected_method || "-");
+      setBackendMethod(result.selected_method || "-");
       setFeedback("stopped");
       setResultDetails(formatResultDetails(result));
       setStatus("stopped");
@@ -143,7 +144,7 @@ export default function App(): JSX.Element {
       }
       setStatus(result.status || status);
       setDecision(result.decision || "pending");
-      setMethod(result.selected_method || "-");
+      setBackendMethod(result.selected_method || "-");
       setResultDetails(formatResultDetails(result));
       if (typeof result.confidence === "number") {
         setFeedback(`result:${result.status}${result.decision ? `:${result.decision}` : ""}`);
@@ -172,8 +173,9 @@ export default function App(): JSX.Element {
           <Text style={styles.label}>Status: {status}</Text>
           <Text style={styles.label}>Feedback: {feedback}</Text>
           <Text style={styles.label}>Decision: {decision}</Text>
+          <Text style={styles.label}>Decision Mode: multi-method</Text>
           <Text style={styles.label}>Selected Method: {selectedMethod}</Text>
-          <Text style={styles.label}>Method: {method}</Text>
+          <Text style={styles.label}>Backend Selected Method: {backendMethod}</Text>
           <Text style={styles.label}>BPM: {bpm}</Text>
           <Text style={styles.label}>Backend: {BACKEND_BASE_URL}</Text>
           <Text style={styles.label}>Capture: {nativeSummaryPluginAvailable ? "vision-camera" : "synthetic fallback (no native summary plugin)"}</Text>
@@ -239,19 +241,13 @@ function formatResultDetails(result: {
   failure_reasons?: string[];
   operational_metrics?: Record<string, number | null>;
 }): string {
-  const pieces: string[] = [];
-  if (typeof result.liveness_score === "number") {
-    pieces.push(`score=${result.liveness_score.toFixed(2)}`);
-  }
-  if (typeof result.confidence === "number") {
-    pieces.push(`conf=${result.confidence.toFixed(2)}`);
-  }
+  const score = typeof result.liveness_score === "number" ? result.liveness_score.toFixed(2) : "-";
+  const confidence = typeof result.confidence === "number" ? result.confidence.toFixed(2) : "-";
   const firstStable = result.operational_metrics?.time_to_stable_estimate_ms;
-  if (typeof firstStable === "number") {
-    pieces.push(`stable_ms=${Math.round(firstStable)}`);
-  }
-  if (Array.isArray(result.failure_reasons) && result.failure_reasons.length > 0) {
-    pieces.push(`reasons=${result.failure_reasons.join("|")}`);
-  }
-  return pieces.length > 0 ? pieces.join(" ") : "no_result_details";
+  const stableMs = typeof firstStable === "number" ? String(Math.round(firstStable)) : "-";
+  const reasons =
+    Array.isArray(result.failure_reasons) && result.failure_reasons.length > 0
+      ? result.failure_reasons.join("|")
+      : "-";
+  return `score=${score} conf=${confidence} stable_ms=${stableMs} reasons=${reasons}`;
 }

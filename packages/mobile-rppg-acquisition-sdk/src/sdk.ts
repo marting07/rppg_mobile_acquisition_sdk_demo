@@ -62,7 +62,14 @@ export class MobileRppgAcquisitionSdk {
         this.emit({ type: "buffering", acceptedPackets: this.acceptedPackets });
       }
       if (event.type === "complete") {
+        this.acquisition?.stop();
         this.emit({ type: "session_summary", result: event.result });
+        this.emit({ type: "status", status: "stopped" });
+      }
+      if (event.type === "error" && (event.code === "websocket_closed" || event.code === "websocket_error")) {
+        this.acquisition?.stop();
+        this.emit({ type: "warning", message: event.code });
+        this.emit({ type: "status", status: "stopped" });
       }
       this.emit({ type: "backend_event", event });
       onBackendEvent?.(event);

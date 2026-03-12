@@ -4,6 +4,7 @@ export class BackendTransport {
   private baseUrl: string;
   private ws: WebSocket | null = null;
   private onFeedback: ((event: FeedbackEvent) => void) | null = null;
+  private connected = false;
   private pendingComplete: {
     promise: Promise<LivenessResult>;
     resolve: (result: LivenessResult) => void;
@@ -50,6 +51,7 @@ export class BackendTransport {
       };
 
       this.ws!.onopen = () => {
+        this.connected = true;
         succeed();
       };
       this.ws!.onmessage = (event) => {
@@ -68,11 +70,23 @@ export class BackendTransport {
       this.ws!.onerror = () => {
         const error = new Error("websocket_error");
         this.onFeedback?.({ type: "error", code: "websocket_error" });
+        if (this.pendingComplete) {
+          this.pendingComplete.reject(error);
+        }
         if (!settled) {
           fail(error);
         }
       };
-      this.ws!.onclose = () => {
+      this.ws!.onclose = (event) => {
+        const wasConnected = this.connected;
+        this.connected = false;
+        this.ws = null;
+        if (this.pendingComplete && event.code !== 1000) {
+          this.pendingComplete.reject(new Error(`websocket_closed:${event.code}`));
+        }
+        if (wasConnected) {
+          this.onFeedback?.({ type: "error", code: "websocket_closed", detail: String(event.code) });
+        }
         if (!settled) {
           fail(new Error("websocket_closed_before_open"));
         }
@@ -94,12 +108,18 @@ export class BackendTransport {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify({ type: "end_stream" }));
       try {
-        return await this.awaitWithTimeout(pendingComplete.promise, timeoutMs, "stream_complete_timeout");
+        const result = await this.awaitWithTimeout(pendingComplete.promise, timeoutMs, "stream_complete_timeout");
+        this.resetSocketState();
+        return result;
       } catch {
-        return this.stopSession(sessionId);
+        const result = await this.stopSession(sessionId);
+        this.resetSocketState();
+        return result;
       }
     }
-    return this.stopSession(sessionId);
+    const result = await this.stopSession(sessionId);
+    this.resetSocketState();
+    return result;
   }
 
   async stopSession(sessionId: string): Promise<LivenessResult> {
@@ -145,5 +165,11 @@ export class BackendTransport {
           reject(error);
         });
     });
+  }
+
+  private resetSocketState(): void {
+    this.connected = false;
+    this.ws = null;
+    this.pendingComplete = null;
   }
 }
