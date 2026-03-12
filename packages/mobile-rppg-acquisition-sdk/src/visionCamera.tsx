@@ -67,6 +67,7 @@ export type VisionCameraCaptureViewProps = {
   isActive: boolean;
   patchRows?: number;
   patchCols?: number;
+  onPluginAvailabilityChange?: (available: boolean) => void;
   style?: CameraProps["style"];
 };
 
@@ -75,6 +76,7 @@ export function VisionCameraCaptureView({
   isActive,
   patchRows = 2,
   patchCols = 3,
+  onPluginAvailabilityChange,
   style
 }: VisionCameraCaptureViewProps): JSX.Element {
   const device = useCameraDevice("front");
@@ -87,6 +89,10 @@ export function VisionCameraCaptureView({
       }) as FrameProcessorPlugin | undefined,
     [patchCols, patchRows]
   );
+
+  useEffect(() => {
+    onPluginAvailabilityChange?.(plugin != null);
+  }, [onPluginAvailabilityChange, plugin]);
   const pushSummary = useMemo(
     () =>
       Worklets.createRunOnJS((summary: NativeSummaryResult) => {

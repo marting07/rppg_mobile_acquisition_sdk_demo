@@ -66,7 +66,8 @@ class RppgFrameSummaryPlugin(private val options: Map<String, Any>?) : FrameProc
         }
 
         val brightness = meanLuma(image, roi.left.toInt(), roi.top.toInt(), roi.right.toInt(), roi.bottom.toInt())
-        val coverage = min(1.0, max(0.0, (roi.width() * roi.height()) / (image.width.toDouble() * image.height.toDouble())))
+        // Coverage is defined as how complete the tracked ROI is, not how large it is relative to the full frame.
+        val coverage = 1.0
         return mapOf(
             "timestampMs" to timestampMs,
             "patches" to patches,

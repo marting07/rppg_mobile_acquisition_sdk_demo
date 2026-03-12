@@ -62,7 +62,8 @@ public class RppgFrameSummaryPlugin: FrameProcessorPlugin {
     }
 
     let brightness = meanLuma(pixelBuffer: pixelBuffer, x0: Int(roi.minX), y0: Int(roi.minY), x1: Int(roi.maxX), y1: Int(roi.maxY))
-    let coverage = min(1.0, max(0.0, (roi.width * roi.height) / CGFloat(width * height)))
+    // Coverage is defined as how complete the tracked ROI is, not how large it is relative to the full frame.
+    let coverage = 1.0
     return [
       "timestampMs": timestampMs,
       "patches": patches,

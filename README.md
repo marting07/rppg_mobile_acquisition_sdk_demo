@@ -2,14 +2,20 @@
 
 This workspace contains:
 
-- a lightweight Demo Client App (`app/`)
-- a reusable Mobile rPPG Acquisition SDK package (`packages/mobile-rppg-acquisition-sdk/`)
+- a lightweight Demo Client App in `app/`
+- a reusable Mobile rPPG Acquisition SDK in `packages/mobile-rppg-acquisition-sdk/`
+
+This is the client side of the canonical modular architecture used in the paper:
+
+- the demo app owns UI, session control, preview, and result visualization
+- the SDK owns acquisition-facing integration points, local prechecks, packet building, and backend transport
+- final physiological inference remains backend-centered
 
 ## Setup
 
 The demo app already includes native `ios/` and `android/` shells under `app/`.
 
-Install JavaScript dependencies from the workspace root:
+Install workspace dependencies:
 
 ```bash
 cd /Users/marting/Documents/Papers/rppg_mobile_acquisition_sdk_demo
@@ -25,51 +31,90 @@ pod install
 
 ## Run
 
-Run Metro from the app root:
+Start Metro:
 
 ```bash
 cd /Users/marting/Documents/Papers/rppg_mobile_acquisition_sdk_demo/app
 npx react-native start
 ```
 
-Run the iOS app:
+Run on iOS:
 
 ```bash
 cd /Users/marting/Documents/Papers/rppg_mobile_acquisition_sdk_demo/app
 npx react-native run-ios
 ```
 
-Run the Android app:
+Run on Android:
 
 ```bash
 cd /Users/marting/Documents/Papers/rppg_mobile_acquisition_sdk_demo/app
 npx react-native run-android
 ```
 
+## Backend URL
+
+The demo app backend target is centralized in:
+
+- `app/src/config.ts`
+
+Current defaults:
+
+- iOS simulator: `http://127.0.0.1:8001`
+- Android emulator: `http://10.0.2.2:8001`
+
+For a physical device, set `PHYSICAL_DEVICE_HOST` in `app/src/config.ts` to your Mac's LAN IP, for example:
+
+```ts
+const PHYSICAL_DEVICE_HOST = "192.168.1.20";
+```
+
+The active backend URL is also shown in the demo UI under `Backend:`.
+
+For iOS physical-device development, the demo shell currently allows insecure HTTP loads so it can connect to a LAN backend such as `http://192.168.x.x:8001`. This is a development/demo setting for the app shell, not a production transport recommendation.
+
 ## Architecture
 
-The demo app focuses on:
+### Demo Client App
 
 - user interaction
-- session control
+- session start/stop
 - preview and result visualization
 - diagnostics display
 
-The Mobile rPPG Acquisition SDK focuses on:
+### Mobile rPPG Acquisition SDK
 
-- acquisition-facing interfaces for camera / ROI integrations
-- camera-adapter and face-tracking module boundaries
+- camera-provider integration points
+- face/ROI integration boundary
 - patch RGB signal summarization
 - local quality gating
+- packet serialization
 - REST control-plane communication
 - WebSocket data-plane streaming
-- callback/event delivery for host apps
+- callback/event delivery to host apps
 
-The SDK does not perform final physiological inference; backend processing remains the single source of truth.
+The SDK does not perform authoritative BPM inference or final live-decision logic. The backend remains the single source of truth for physiological analysis.
 
-The demo app now includes a native preview provider based on `react-native-vision-camera` and routes acquisition through the SDK adapter boundary. When a native frame-summary hook is available, the Vision Camera adapter can deliver real patch summaries into the SDK. A synthetic adapter remains as a fallback so the transport and backend contract can still be exercised without the native summary plugin.
+## Native Capture Path
 
-The SDK package now also carries a native Vision Camera frame-processor plugin (`summarizeRppgFrame`) for iOS and Android. The first implementation uses a center-upper face proxy ROI and patch-level RGB summarization so the mobile-to-backend path can operate on real camera frames before a dedicated face-tracking module is added.
+The demo app uses `react-native-vision-camera` for preview and native frame access.
+
+The SDK package includes a native Vision Camera frame-processor plugin, `summarizeRppgFrame`, for iOS and Android. The current implementation supports face-driven ROI extraction and patch-level RGB summarization for mobile-to-backend streaming.
+
+A synthetic adapter remains available as a fallback so transport and backend integration can still be exercised when the native frame-summary path is unavailable.
+
+## Validation Status
+
+Current verification in this workspace includes:
+
+- iOS native shell build
+- Android native shell build
+- SDK/demo app integration against the current backend contract
+
+What is still worth doing for stronger deployment validation:
+
+- run real end-to-end sessions on a physical device
+- collect additional device-side traces under motion and illumination variation
 
 ## Troubleshooting
 
@@ -95,6 +140,14 @@ If the app opens but camera preview does not appear:
 - confirm camera permissions are granted on the device or simulator
 - note that iOS simulators generally do not provide a useful real front-camera path for this workflow; prefer a physical device
 - on Android, verify camera permission was accepted and that the selected device has a front-facing camera
+
+If a physical iPhone shows `Network request failed` when calling the backend:
+
+- confirm the backend is running on your Mac with `--host 0.0.0.0`
+- confirm the phone and Mac are on the same Wi-Fi network
+- confirm `PHYSICAL_DEVICE_HOST` in `app/src/config.ts` matches your Mac LAN IP
+- confirm macOS firewall is not blocking inbound connections to the backend process
+- rebuild the iOS app after any `Info.plist` transport-permission change
 
 If frame summaries are not being produced:
 

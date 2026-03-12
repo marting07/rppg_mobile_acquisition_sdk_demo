@@ -52,11 +52,11 @@ export class MobileRppgAcquisitionSdk {
     return this.session;
   }
 
-  startStreaming(onBackendEvent?: (event: FeedbackEvent) => void): void {
+  async startStreaming(onBackendEvent?: (event: FeedbackEvent) => void): Promise<void> {
     if (!this.session) {
       throw new Error("Session has not been created");
     }
-    this.transport.connect(this.session, (event) => {
+    await this.transport.connect(this.session, (event) => {
       if (event.type === "ack" && event.accepted) {
         this.acceptedPackets += 1;
         this.emit({ type: "buffering", acceptedPackets: this.acceptedPackets });
@@ -102,9 +102,10 @@ export class MobileRppgAcquisitionSdk {
       return null;
     }
     this.acquisition?.stop();
-    this.transport.stop();
+    const result = await this.transport.stop(this.session.session_id);
     this.emit({ type: "status", status: "stopped" });
-    return this.transport.getResult(this.session.session_id);
+    this.emit({ type: "session_summary", result });
+    return result;
   }
 
   async fetchResult(): Promise<LivenessResult | null> {
