@@ -37,35 +37,43 @@ class RppgFrameSummaryPlugin(private val options: Map<String, Any>?) : FrameProc
         val image = frame.image
         val timestampMs = frame.timestamp / 1_000_000.0
         val faceRect = trackedFaceRect(frame, image, timestampMs)
-        val roi = faceRect?.let { foreheadRoi(it, image.width.toFloat(), image.height.toFloat()) }
+        val regions = faceRect?.let { canonicalRegions(it, image.width.toFloat(), image.height.toFloat()) } ?: emptyList()
 
-        if (roi == null) {
+        if (regions.isEmpty()) {
             lastMotionScore = 1.0
             return emptyResult(timestampMs)
         }
 
         val patches = mutableListOf<Map<String, Any>>()
-        val rowHeight = max(1, (roi.height() / patchRows).toInt())
-        val colWidth = max(1, (roi.width() / patchCols).toInt())
-
-        for (row in 0 until patchRows) {
-            for (col in 0 until patchCols) {
-                val x0 = roi.left.toInt() + col * colWidth
-                val x1 = if (col == patchCols - 1) roi.right.toInt() else min(roi.right.toInt(), x0 + colWidth)
-                val y0 = roi.top.toInt() + row * rowHeight
-                val y1 = if (row == patchRows - 1) roi.bottom.toInt() else min(roi.bottom.toInt(), y0 + rowHeight)
-                val rgb = meanRgbFromYuv420(image, x0, y0, x1, y1)
-                patches.add(
-                    mapOf(
-                        "patchId" to "r${row}c${col}",
-                        "meanRgb" to listOf(rgb[0], rgb[1], rgb[2]),
-                        "weight" to max(1, (x1 - x0) * (y1 - y0))
+        for ((group, roi) in regions) {
+            val rowHeight = max(1, (roi.height() / patchRows).toInt())
+            val colWidth = max(1, (roi.width() / patchCols).toInt())
+            for (row in 0 until patchRows) {
+                for (col in 0 until patchCols) {
+                    val x0 = roi.left.toInt() + col * colWidth
+                    val x1 = if (col == patchCols - 1) roi.right.toInt() else min(roi.right.toInt(), x0 + colWidth)
+                    val y0 = roi.top.toInt() + row * rowHeight
+                    val y1 = if (row == patchRows - 1) roi.bottom.toInt() else min(roi.bottom.toInt(), y0 + rowHeight)
+                    val rgb = meanRgbFromYuv420(image, x0, y0, x1, y1)
+                    patches.add(
+                        mapOf(
+                            "patchId" to "${group}_r${row}c${col}",
+                            "patchGroup" to group,
+                            "meanRgb" to listOf(rgb[0], rgb[1], rgb[2]),
+                            "weight" to max(1, (x1 - x0) * (y1 - y0))
+                        )
                     )
-                )
+                }
             }
         }
 
-        val brightness = meanLuma(image, roi.left.toInt(), roi.top.toInt(), roi.right.toInt(), roi.bottom.toInt())
+        val brightness = meanLuma(
+            image,
+            faceRect!!.left.toInt(),
+            faceRect.top.toInt(),
+            faceRect.right.toInt(),
+            faceRect.bottom.toInt()
+        )
         // Coverage is defined as how complete the tracked ROI is, not how large it is relative to the full frame.
         val coverage = 1.0
         return mapOf(
@@ -135,15 +143,37 @@ class RppgFrameSummaryPlugin(private val options: Map<String, Any>?) : FrameProc
         return min(1.0, sqrt((dx * dx + dy * dy).toDouble()) / diagonal)
     }
 
-    private fun foreheadRoi(faceRect: RectF, width: Float, height: Float): RectF? {
-        val roi = RectF(
-            faceRect.left + faceRect.width() * 0.18f,
-            faceRect.top + faceRect.height() * 0.12f,
-            faceRect.right - faceRect.width() * 0.18f,
-            faceRect.top + faceRect.height() * 0.34f
+    private fun canonicalRegions(faceRect: RectF, width: Float, height: Float): List<Pair<String, RectF>> {
+        val candidates = listOf(
+            "forehead" to RectF(
+                faceRect.left + faceRect.width() * 0.20f,
+                faceRect.top + faceRect.height() * 0.10f,
+                faceRect.left + faceRect.width() * 0.80f,
+                faceRect.top + faceRect.height() * 0.32f
+            ),
+            "left_cheek" to RectF(
+                faceRect.left + faceRect.width() * 0.08f,
+                faceRect.top + faceRect.height() * 0.42f,
+                faceRect.left + faceRect.width() * 0.34f,
+                faceRect.top + faceRect.height() * 0.64f
+            ),
+            "right_cheek" to RectF(
+                faceRect.left + faceRect.width() * 0.66f,
+                faceRect.top + faceRect.height() * 0.42f,
+                faceRect.left + faceRect.width() * 0.92f,
+                faceRect.top + faceRect.height() * 0.64f
+            )
         )
-        roi.intersect(0f, 0f, width, height)
-        return if (roi.width() > 4f && roi.height() > 4f) roi else null
+
+        return candidates.mapNotNull { (name, rect) ->
+            val clipped = RectF(rect)
+            val intersects = clipped.intersect(0f, 0f, width, height)
+            if (!intersects || clipped.width() <= 4f || clipped.height() <= 4f) {
+                null
+            } else {
+                name to clipped
+            }
+        }
     }
 
     private fun uprightRectToBufferRect(

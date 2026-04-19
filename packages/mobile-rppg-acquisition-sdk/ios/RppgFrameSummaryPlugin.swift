@@ -36,32 +36,46 @@ public class RppgFrameSummaryPlugin: FrameProcessorPlugin {
     let height = CVPixelBufferGetHeight(pixelBuffer)
     let timestampMs = frame.timestamp * 1000.0
 
-    guard let faceRect = trackedFaceRect(frame: frame, pixelBuffer: pixelBuffer, timestampMs: timestampMs, bufferWidth: width, bufferHeight: height),
-          let roi = foreheadRoi(from: faceRect, bufferWidth: width, bufferHeight: height) else {
+    guard let faceRect = trackedFaceRect(frame: frame, pixelBuffer: pixelBuffer, timestampMs: timestampMs, bufferWidth: width, bufferHeight: height) else {
       lastMotionScore = 1.0
       return emptyResult(timestampMs: timestampMs)
     }
 
-    let rowHeight = max(1, Int(roi.height) / patchRows)
-    let colWidth = max(1, Int(roi.width) / patchCols)
+    let regions = canonicalRegions(from: faceRect, bufferWidth: width, bufferHeight: height)
+    guard !regions.isEmpty else {
+      lastMotionScore = 1.0
+      return emptyResult(timestampMs: timestampMs)
+    }
+
     var patches: [[String: Any]] = []
 
-    for row in 0..<patchRows {
-      for col in 0..<patchCols {
-        let x0 = Int(roi.origin.x) + col * colWidth
-        let x1 = col == patchCols - 1 ? Int(roi.maxX) : min(Int(roi.maxX), x0 + colWidth)
-        let y0 = Int(roi.origin.y) + row * rowHeight
-        let y1 = row == patchRows - 1 ? Int(roi.maxY) : min(Int(roi.maxY), y0 + rowHeight)
-        let rgb = meanRgbFromNV12(pixelBuffer: pixelBuffer, x0: x0, y0: y0, x1: x1, y1: y1)
-        patches.append([
-          "patchId": "r\(row)c\(col)",
-          "meanRgb": rgb,
-          "weight": max(1, (x1 - x0) * (y1 - y0))
-        ])
+    for region in regions {
+      let rowHeight = max(1, Int(region.rect.height) / patchRows)
+      let colWidth = max(1, Int(region.rect.width) / patchCols)
+      for row in 0..<patchRows {
+        for col in 0..<patchCols {
+          let x0 = Int(region.rect.origin.x) + col * colWidth
+          let x1 = col == patchCols - 1 ? Int(region.rect.maxX) : min(Int(region.rect.maxX), x0 + colWidth)
+          let y0 = Int(region.rect.origin.y) + row * rowHeight
+          let y1 = row == patchRows - 1 ? Int(region.rect.maxY) : min(Int(region.rect.maxY), y0 + rowHeight)
+          let rgb = meanRgbFromNV12(pixelBuffer: pixelBuffer, x0: x0, y0: y0, x1: x1, y1: y1)
+          patches.append([
+            "patchId": "\(region.name)_r\(row)c\(col)",
+            "patchGroup": region.name,
+            "meanRgb": rgb,
+            "weight": max(1, (x1 - x0) * (y1 - y0))
+          ])
+        }
       }
     }
 
-    let brightness = meanLuma(pixelBuffer: pixelBuffer, x0: Int(roi.minX), y0: Int(roi.minY), x1: Int(roi.maxX), y1: Int(roi.maxY))
+    let brightness = meanLuma(
+      pixelBuffer: pixelBuffer,
+      x0: Int(faceRect.minX),
+      y0: Int(faceRect.minY),
+      x1: Int(faceRect.maxX),
+      y1: Int(faceRect.maxY)
+    )
     // Coverage is defined as how complete the tracked ROI is, not how large it is relative to the full frame.
     let coverage = 1.0
     return [
@@ -128,17 +142,45 @@ public class RppgFrameSummaryPlugin: FrameProcessorPlugin {
     }
   }
 
-  private func foreheadRoi(from faceRect: CGRect, bufferWidth: Int, bufferHeight: Int) -> CGRect? {
-    let x = faceRect.origin.x + faceRect.width * 0.18
-    let y = faceRect.origin.y + faceRect.height * 0.12
-    let width = faceRect.width * 0.64
-    let height = faceRect.height * 0.22
+  private func canonicalRegions(from faceRect: CGRect, bufferWidth: Int, bufferHeight: Int) -> [(name: String, rect: CGRect)] {
+    let bounds = CGRect(x: 0, y: 0, width: bufferWidth, height: bufferHeight)
+    let candidates: [(String, CGRect)] = [
+      (
+        "forehead",
+        CGRect(
+          x: faceRect.origin.x + faceRect.width * 0.20,
+          y: faceRect.origin.y + faceRect.height * 0.10,
+          width: faceRect.width * 0.60,
+          height: faceRect.height * 0.22
+        )
+      ),
+      (
+        "left_cheek",
+        CGRect(
+          x: faceRect.origin.x + faceRect.width * 0.08,
+          y: faceRect.origin.y + faceRect.height * 0.42,
+          width: faceRect.width * 0.26,
+          height: faceRect.height * 0.22
+        )
+      ),
+      (
+        "right_cheek",
+        CGRect(
+          x: faceRect.origin.x + faceRect.width * 0.66,
+          y: faceRect.origin.y + faceRect.height * 0.42,
+          width: faceRect.width * 0.26,
+          height: faceRect.height * 0.22
+        )
+      )
+    ]
 
-    let roi = CGRect(x: x, y: y, width: width, height: height)
-      .intersection(CGRect(x: 0, y: 0, width: bufferWidth, height: bufferHeight))
-      .integral
-
-    return roi.width > 4 && roi.height > 4 ? roi : nil
+    return candidates.compactMap { entry in
+      let clipped = entry.1.intersection(bounds).integral
+      guard clipped.width > 4, clipped.height > 4 else {
+        return nil
+      }
+      return (entry.0, clipped)
+    }
   }
 
   private func smoothRect(previous: CGRect?, next: CGRect) -> CGRect {

@@ -22,7 +22,7 @@ export default function App(): JSX.Element {
   const [status, setStatus] = useState<string>("idle");
   const [feedback, setFeedback] = useState<string>("Ready");
   const [decision, setDecision] = useState<string>("-");
-  const [backendMethod, setBackendMethod] = useState<string>("-");
+  const [corroborationMethod, setCorroborationMethod] = useState<string>("-");
   const [bpm, setBpm] = useState<string>("-");
   const [selectedMethod, setSelectedMethod] = useState<(typeof availableMethods)[number]>("chrom");
   const [resultDetails, setResultDetails] = useState<string>("-");
@@ -53,7 +53,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision(event.result.decision || "unknown");
-      setBackendMethod(event.result.selected_method || "-");
+      setCorroborationMethod(event.result.corroboration_method || "-");
       setResultDetails(formatResultDetails(event.result));
     }
   };
@@ -64,7 +64,7 @@ export default function App(): JSX.Element {
     } else if (event.type === "provisional_result" || event.type === "stable_result") {
       const highlighted = event.method_state[selectedMethod];
       setBpm((highlighted?.bpm ?? event.bpm).toFixed(1));
-      setBackendMethod(event.selected_method);
+      setCorroborationMethod(event.corroboration_method || "-");
       setFeedback(event.type === "stable_result" ? "stable" : "buffering");
     } else if (event.type === "complete") {
       if (stopTimerRef.current) {
@@ -72,7 +72,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision(event.result.decision || "unknown");
-      setBackendMethod(event.result.selected_method || "-");
+      setCorroborationMethod(event.result.corroboration_method || "-");
       setResultDetails(formatResultDetails(event.result));
       setStatus("stopped");
     } else if (event.type === "error") {
@@ -90,7 +90,7 @@ export default function App(): JSX.Element {
         stopTimerRef.current = null;
       }
       setDecision("-");
-      setBackendMethod("-");
+      setCorroborationMethod("-");
       setBpm("-");
       setResultDetails("-");
       setFeedback("starting");
@@ -124,7 +124,7 @@ export default function App(): JSX.Element {
         return;
       }
       setDecision(result.decision || "unknown");
-      setBackendMethod(result.selected_method || "-");
+      setCorroborationMethod(result.corroboration_method || "-");
       setFeedback("stopped");
       setResultDetails(formatResultDetails(result));
       setStatus("stopped");
@@ -144,7 +144,7 @@ export default function App(): JSX.Element {
       }
       setStatus(result.status || status);
       setDecision(result.decision || "pending");
-      setBackendMethod(result.selected_method || "-");
+      setCorroborationMethod(result.corroboration_method || "-");
       setResultDetails(formatResultDetails(result));
       if (typeof result.confidence === "number") {
         setFeedback(`result:${result.status}${result.decision ? `:${result.decision}` : ""}`);
@@ -173,9 +173,9 @@ export default function App(): JSX.Element {
           <Text style={styles.label}>Status: {status}</Text>
           <Text style={styles.label}>Feedback: {feedback}</Text>
           <Text style={styles.label}>Decision: {decision}</Text>
-          <Text style={styles.label}>Decision Mode: multi-method</Text>
+          <Text style={styles.label}>Decision Mode: fixed pair</Text>
           <Text style={styles.label}>Selected Method: {selectedMethod}</Text>
-          <Text style={styles.label}>Backend Selected Method: {backendMethod}</Text>
+          <Text style={styles.label}>Corroboration Method: {corroborationMethod}</Text>
           <Text style={styles.label}>BPM: {bpm}</Text>
           <Text style={styles.label}>Backend: {BACKEND_BASE_URL}</Text>
           <Text style={styles.label}>Capture: {nativeSummaryPluginAvailable ? "vision-camera" : "synthetic fallback (no native summary plugin)"}</Text>
@@ -238,16 +238,23 @@ const styles = StyleSheet.create({
 function formatResultDetails(result: {
   liveness_score?: number;
   confidence?: number;
+  coherence_summary?: Record<string, unknown>;
   failure_reasons?: string[];
   operational_metrics?: Record<string, number | null>;
 }): string {
   const score = typeof result.liveness_score === "number" ? result.liveness_score.toFixed(2) : "-";
   const confidence = typeof result.confidence === "number" ? result.confidence.toFixed(2) : "-";
+  const coherenceScore =
+    typeof result.coherence_summary?.score === "number" ? (result.coherence_summary.score as number).toFixed(2) : "-";
+  const recoverableGroups =
+    typeof result.coherence_summary?.recoverable_groups === "number" ? String(result.coherence_summary.recoverable_groups) : "-";
+  const agreeingGroups =
+    typeof result.coherence_summary?.agreeing_groups === "number" ? String(result.coherence_summary.agreeing_groups) : "-";
   const firstStable = result.operational_metrics?.time_to_stable_estimate_ms;
   const stableMs = typeof firstStable === "number" ? String(Math.round(firstStable)) : "-";
   const reasons =
     Array.isArray(result.failure_reasons) && result.failure_reasons.length > 0
       ? result.failure_reasons.join("|")
       : "-";
-  return `score=${score} conf=${confidence} stable_ms=${stableMs} reasons=${reasons}`;
+  return `score=${score} conf=${confidence} coherence=${coherenceScore} groups=${agreeingGroups}/${recoverableGroups} stable_ms=${stableMs} reasons=${reasons}`;
 }

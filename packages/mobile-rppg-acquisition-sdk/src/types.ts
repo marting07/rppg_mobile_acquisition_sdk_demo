@@ -23,6 +23,8 @@ export type LivenessResult = {
   liveness_score?: number;
   confidence?: number;
   selected_method?: string;
+  corroboration_method?: string | null;
+  coherence_summary?: Record<string, unknown>;
   method_scores?: Record<string, number>;
   quality_summary?: Record<string, number>;
   operational_metrics?: Record<string, number | null>;
@@ -33,13 +35,14 @@ export type LivenessResult = {
 export type FeedbackEvent =
   | { type: "ack"; seq: number; accepted: number; timestamp_ms: number }
   | { type: "quality_feedback"; seq: number; message: string; brightness?: number; motion_score?: number; roi_coverage?: number }
-  | { type: "provisional_result"; bpm: number; confidence: number; selected_method: string; timestamp_ms: number; method_state: Record<string, { bpm: number; confidence: number }> }
-  | { type: "stable_result"; bpm: number; confidence: number; selected_method: string; timestamp_ms: number; method_state: Record<string, { bpm: number; confidence: number }> }
+  | { type: "provisional_result"; bpm: number; confidence: number; selected_method: string; corroboration_method?: string | null; timestamp_ms: number; method_state: Record<string, { bpm: number; confidence: number }> }
+  | { type: "stable_result"; bpm: number; confidence: number; selected_method: string; corroboration_method?: string | null; timestamp_ms: number; method_state: Record<string, { bpm: number; confidence: number }> }
   | { type: "complete"; result: LivenessResult }
   | { type: "error"; code: string; detail?: string };
 
 export type PatchObservation = {
   patchId: string;
+  patchGroup?: string;
   meanRgb: [number, number, number];
   weight?: number;
 };

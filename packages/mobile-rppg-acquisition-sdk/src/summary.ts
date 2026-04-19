@@ -7,6 +7,7 @@ export function toSummaryPacket(frame: AcquisitionFrame, seq: number): Record<st
     timestamp_ms: frame.timestampMs,
     patches: frame.patches.map((patch) => ({
       patch_id: patch.patchId,
+      patch_group: patch.patchGroup,
       mean_rgb: patch.meanRgb,
       weight: patch.weight ?? 1
     }))

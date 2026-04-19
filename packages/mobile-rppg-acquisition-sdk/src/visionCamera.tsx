@@ -8,6 +8,7 @@ import { AcquisitionFrame, PreviewAttachment } from "./types";
 
 type NativePatchSummary = {
   patchId: string;
+  patchGroup?: string;
   meanRgb: [number, number, number];
   weight?: number;
 };
@@ -56,6 +57,7 @@ export class VisionCameraAdapter implements CameraAdapter {
       timestampMs: normalizedTimestampMs,
       patches: summary.patches.map((patch) => ({
         patchId: patch.patchId,
+        patchGroup: patch.patchGroup ?? canonicalPatchGroup(patch.patchId),
         meanRgb: patch.meanRgb,
         weight: patch.weight ?? 1
       })),
@@ -83,6 +85,37 @@ export class VisionCameraAdapter implements CameraAdapter {
     }
     return Math.round(wallClockStart + relativeMs);
   }
+}
+
+function canonicalPatchGroup(patchId: string): string {
+  const explicit = /^(forehead|left_cheek|right_cheek)/i.exec(patchId);
+  if (explicit) {
+    return explicit[1].toLowerCase();
+  }
+  const match = /^r(\d+)c(\d+)$/i.exec(patchId);
+  if (!match) {
+    if (/p0/i.test(patchId)) {
+      return "left_cheek";
+    }
+    if (/p1/i.test(patchId)) {
+      return "forehead";
+    }
+    if (/p2/i.test(patchId)) {
+      return "right_cheek";
+    }
+    return "unknown";
+  }
+  const col = Number(match[2]);
+  if (Number.isNaN(col)) {
+    return "unknown";
+  }
+  if (col <= 0) {
+    return "left_cheek";
+  }
+  if (col === 1) {
+    return "forehead";
+  }
+  return "right_cheek";
 }
 
 export type VisionCameraCaptureViewProps = {

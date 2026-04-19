@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 const BACKEND_PORT = 8001;
 
 // Replace this with your Mac's LAN IP when testing from a physical device.
-const PHYSICAL_DEVICE_HOST: string | null = null;
+const PHYSICAL_DEVICE_HOST: string | null = "192.168.1.88";
 
 function defaultBackendHost(): string {
   if (PHYSICAL_DEVICE_HOST) {

@@ -6,12 +6,12 @@ function createSyntheticFrame(timestampMs: number): AcquisitionFrame {
   return {
     timestampMs,
     patches: [
-      { patchId: "r0c0", meanRgb: [132 + pulse * 5, 118 + pulse * 3, 95], weight: 1 },
-      { patchId: "r0c1", meanRgb: [130 + pulse * 4, 117 + pulse * 2, 94], weight: 1 },
-      { patchId: "r0c2", meanRgb: [131 + pulse * 6, 119 + pulse * 3, 96], weight: 1 },
-      { patchId: "r1c0", meanRgb: [129 + pulse * 4, 116 + pulse * 2, 93], weight: 1 },
-      { patchId: "r1c1", meanRgb: [133 + pulse * 5, 120 + pulse * 3, 97], weight: 1 },
-      { patchId: "r1c2", meanRgb: [128 + pulse * 4, 115 + pulse * 2, 92], weight: 1 }
+      { patchId: "left_cheek_r0c0", patchGroup: "left_cheek", meanRgb: [132 + pulse * 5, 118 + pulse * 3, 95], weight: 1 },
+      { patchId: "forehead_r0c0", patchGroup: "forehead", meanRgb: [130 + pulse * 4, 117 + pulse * 2, 94], weight: 1 },
+      { patchId: "right_cheek_r0c0", patchGroup: "right_cheek", meanRgb: [131 + pulse * 6, 119 + pulse * 3, 96], weight: 1 },
+      { patchId: "left_cheek_r1c0", patchGroup: "left_cheek", meanRgb: [129 + pulse * 4, 116 + pulse * 2, 93], weight: 1 },
+      { patchId: "forehead_r1c0", patchGroup: "forehead", meanRgb: [133 + pulse * 5, 120 + pulse * 3, 97], weight: 1 },
+      { patchId: "right_cheek_r1c0", patchGroup: "right_cheek", meanRgb: [128 + pulse * 4, 115 + pulse * 2, 92], weight: 1 }
     ],
     localQuality: {
       facePresent: true,
