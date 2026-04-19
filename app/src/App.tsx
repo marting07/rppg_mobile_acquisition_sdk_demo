@@ -26,6 +26,7 @@ export default function App(): JSX.Element {
   const [bpm, setBpm] = useState<string>("-");
   const [selectedMethod, setSelectedMethod] = useState<(typeof availableMethods)[number]>("chrom");
   const [resultDetails, setResultDetails] = useState<string>("-");
+  const [coherenceDetails, setCoherenceDetails] = useState<string>("-");
   const isSessionActive = status === "streaming" || status === "session_created";
 
   useEffect(() => {
@@ -55,6 +56,7 @@ export default function App(): JSX.Element {
       setDecision(event.result.decision || "unknown");
       setCorroborationMethod(event.result.corroboration_method || "-");
       setResultDetails(formatResultDetails(event.result));
+      setCoherenceDetails(formatCoherenceDetails(event.result));
     }
   };
 
@@ -93,6 +95,7 @@ export default function App(): JSX.Element {
       setCorroborationMethod("-");
       setBpm("-");
       setResultDetails("-");
+      setCoherenceDetails("-");
       setFeedback("starting");
       sdk.initialize(onSdkEvent);
       const previewAttachment: PreviewAttachment = {
@@ -127,6 +130,7 @@ export default function App(): JSX.Element {
       setCorroborationMethod(result.corroboration_method || "-");
       setFeedback("stopped");
       setResultDetails(formatResultDetails(result));
+      setCoherenceDetails(formatCoherenceDetails(result));
       setStatus("stopped");
     } catch (error) {
       const message = error instanceof Error ? error.message : "stop_failed";
@@ -146,6 +150,7 @@ export default function App(): JSX.Element {
       setDecision(result.decision || "pending");
       setCorroborationMethod(result.corroboration_method || "-");
       setResultDetails(formatResultDetails(result));
+      setCoherenceDetails(formatCoherenceDetails(result));
       if (typeof result.confidence === "number") {
         setFeedback(`result:${result.status}${result.decision ? `:${result.decision}` : ""}`);
       } else {
@@ -180,6 +185,7 @@ export default function App(): JSX.Element {
           <Text style={styles.label}>Backend: {BACKEND_BASE_URL}</Text>
           <Text style={styles.label}>Capture: {nativeSummaryPluginAvailable ? "vision-camera" : "synthetic fallback (no native summary plugin)"}</Text>
           <Text style={styles.label}>Result Details: {resultDetails}</Text>
+          <Text style={styles.label}>Coherence: {coherenceDetails}</Text>
 
           <View style={styles.methodSelector}>
             {availableMethods.map((candidate) => {
@@ -257,4 +263,26 @@ function formatResultDetails(result: {
       ? result.failure_reasons.join("|")
       : "-";
   return `score=${score} conf=${confidence} coherence=${coherenceScore} groups=${agreeingGroups}/${recoverableGroups} stable_ms=${stableMs} reasons=${reasons}`;
+}
+
+function formatCoherenceDetails(result: { coherence_summary?: Record<string, unknown> }): string {
+  const coherence = result.coherence_summary;
+  if (!coherence || typeof coherence !== "object") {
+    return "-";
+  }
+  const groups = coherence.group_summary as Record<string, Record<string, number>> | undefined;
+  const formattedGroups = groups
+    ? ["forehead", "left_cheek", "right_cheek"]
+        .map((group) => {
+          const entry = groups[group];
+          if (!entry) {
+            return `${group}:-`;
+          }
+          const bpm = typeof entry.bpm === "number" && entry.bpm > 0 ? entry.bpm.toFixed(1) : "-";
+          const confidence = typeof entry.confidence === "number" ? entry.confidence.toFixed(2) : "-";
+          return `${group}:${bpm}@${confidence}`;
+        })
+        .join(" ")
+    : "-";
+  return formattedGroups;
 }
