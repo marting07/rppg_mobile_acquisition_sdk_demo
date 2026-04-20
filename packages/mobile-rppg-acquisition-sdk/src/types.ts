@@ -25,6 +25,7 @@ export type LivenessResult = {
   selected_method?: string;
   corroboration_method?: string | null;
   coherence_summary?: Record<string, unknown>;
+  replay_summary?: Record<string, unknown>;
   method_scores?: Record<string, number>;
   quality_summary?: Record<string, number>;
   operational_metrics?: Record<string, number | null>;
@@ -54,10 +55,19 @@ export type LocalQualitySnapshot = {
   roiCoverage: number;
 };
 
+export type PassiveArtifactSnapshot = {
+  moireScore: number;
+  brightnessBandingScore: number;
+  reflectanceVariation: number;
+  flatContrastScore: number;
+  globalBrightnessDrift: number;
+};
+
 export type AcquisitionFrame = {
   timestampMs: number;
   patches: PatchObservation[];
   localQuality?: Partial<LocalQualitySnapshot>;
+  passiveArtifacts?: Partial<PassiveArtifactSnapshot>;
 };
 
 export type SessionOptions = {

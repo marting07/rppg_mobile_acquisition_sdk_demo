@@ -1,5 +1,5 @@
 import { AcquisitionController, AcquisitionModules } from "./acquisition";
-import { evaluateLocalQuality, isLocallyAcceptable } from "./quality";
+import { evaluateLocalQuality, evaluatePassiveArtifacts, isLocallyAcceptable } from "./quality";
 import { toSummaryPacket } from "./summary";
 import {
   AcquisitionFrame,
@@ -21,6 +21,7 @@ export class MobileRppgAcquisitionSdk {
   private seq = 0;
   private acceptedPackets = 0;
   private eventHandler: SdkEventHandler | null = null;
+  private previousBrightness: number | null = null;
 
   constructor(baseUrl: string) {
     this.transport = new BackendTransport(baseUrl);
@@ -48,6 +49,7 @@ export class MobileRppgAcquisitionSdk {
     this.session = await this.transport.createSession(options);
     this.seq = 0;
     this.acceptedPackets = 0;
+    this.previousBrightness = null;
     this.emit({ type: "status", status: "session_created" });
     return this.session;
   }
@@ -86,12 +88,21 @@ export class MobileRppgAcquisitionSdk {
 
   ingestFrame(frame: AcquisitionFrame): void {
     const quality = evaluateLocalQuality(frame);
+    const passiveArtifacts = evaluatePassiveArtifacts({
+      ...frame,
+      passiveArtifacts: {
+        ...frame.passiveArtifacts,
+        globalBrightnessDrift:
+          this.previousBrightness == null ? 0 : Math.abs(quality.brightness - this.previousBrightness)
+      }
+    });
+    this.previousBrightness = quality.brightness;
     this.emit({ type: "quality_changed", quality });
     if (!isLocallyAcceptable(quality)) {
       this.emit({ type: "warning", message: "local_quality_gate_failed" });
       return;
     }
-    const packet = toSummaryPacket(frame, this.seq);
+    const packet = toSummaryPacket({ ...frame, passiveArtifacts }, this.seq);
     Object.assign(packet, {
       local_quality: {
         face_present: quality.facePresent,

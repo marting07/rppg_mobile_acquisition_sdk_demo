@@ -245,6 +245,7 @@ function formatResultDetails(result: {
   liveness_score?: number;
   confidence?: number;
   coherence_summary?: Record<string, unknown>;
+  replay_summary?: Record<string, unknown>;
   failure_reasons?: string[];
   operational_metrics?: Record<string, number | null>;
 }): string {
@@ -252,6 +253,8 @@ function formatResultDetails(result: {
   const confidence = typeof result.confidence === "number" ? result.confidence.toFixed(2) : "-";
   const coherenceScore =
     typeof result.coherence_summary?.score === "number" ? (result.coherence_summary.score as number).toFixed(2) : "-";
+  const replayScore =
+    typeof result.replay_summary?.score === "number" ? (result.replay_summary.score as number).toFixed(2) : "-";
   const recoverableGroups =
     typeof result.coherence_summary?.recoverable_groups === "number" ? String(result.coherence_summary.recoverable_groups) : "-";
   const agreeingGroups =
@@ -262,7 +265,7 @@ function formatResultDetails(result: {
     Array.isArray(result.failure_reasons) && result.failure_reasons.length > 0
       ? result.failure_reasons.join("|")
       : "-";
-  return `score=${score} conf=${confidence} coherence=${coherenceScore} groups=${agreeingGroups}/${recoverableGroups} stable_ms=${stableMs} reasons=${reasons}`;
+  return `score=${score} conf=${confidence} coherence=${coherenceScore} replay=${replayScore} groups=${agreeingGroups}/${recoverableGroups} stable_ms=${stableMs} reasons=${reasons}`;
 }
 
 function formatCoherenceDetails(result: { coherence_summary?: Record<string, unknown> }): string {
